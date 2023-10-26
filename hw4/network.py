@@ -1,6 +1,7 @@
 # author: Rachael Judy
 # date: 7 November 2023
-# purpose: develop a multilayer neural network with backpropagation to differentiate the MNIST digits
+# purpose: develop a multilayer neural network with backpropagation to differentiate the MNIST digits as well as
+#           an autoencoder with the same number of hidden neurons as the MNIST digits
 
 
 from collections import defaultdict
@@ -9,15 +10,9 @@ import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import random
-import sys
 import time
 
 from neuron import Neuron, ActivationFunction
-
-
-# # going to have an array of perceptrons
-# sys.path.append("..")
-# from hw3.hw3 import Perceptron
 
 
 # adapted from my hw 3
@@ -55,9 +50,32 @@ def create_data(image_file, label_file, data_limit, values: set, test_quantity: 
     test_file.close()
 
 
+def plot_heatmaps(data: [[]], captions: [], image_caption: str):
+    # plot heatmaps of weights initial and final
+
+    fig, axes = plt.subplots(nrows=len(data), ncols=len(data[0]))
+    fig.title(image_caption)
+    fig.tight_layout()
+
+    plt.subplots_adjust(left=0.6,
+                        bottom=0.1,
+                        right=0.6,
+                        top=0.5,
+                        wspace=0.4,
+                        hspace=0.4)
+    for i in range(len(data)):
+        for j in range(len(data[0])):
+            heatmap = np.reshape(data[i][j], (28, 28))
+            image = axes[i][j].matshow(heatmap)
+            fig.colorbar(image, ax=axes[i][j])
+            axes[i][j].set_title(captions[i][j]), axes[i][j].set_xlabel('Weights'), axes[i][j].set_ylabel('Weights')
+
+    plt.show()
+
+
 class Network:
     def __init__(self, neurons_by_layer: list = None, activations_by_layer: list = None,
-                 weight_file: str = None, momentum_alpha: float = 0.0):
+                 weight_file: str = None, momentum_alpha: float = 0.0, learning_rate = .0005):
         """
         make a list of lists of neurons
         """
@@ -67,7 +85,7 @@ class Network:
             weights = self.read_weights(weight_file)
             if activations_by_layer is None:
                 activations_by_layer = [ActivationFunction.SIGMOID for _ in weights]
-            self._neurons = [[Neuron(len(neuron) - 1, neuron[1:], neuron[0], learning_rate=.001,
+            self._neurons = [[Neuron(len(neuron) - 1, neuron[1:], neuron[0], learning_rate=learning_rate,
                                      momentum_alpha=momentum_alpha, activation_function=activation)
                               for neuron in weight_layer]
                              for activation, weight_layer in zip(activations_by_layer, weights)]
@@ -76,7 +94,7 @@ class Network:
                 activations_by_layer = [ActivationFunction.SIGMOID for _ in neurons_by_layer[1:]]
 
             # create neurons with default weights
-            self._neurons = [[Neuron(neurons_by_layer[i], learning_rate=.001, momentum_alpha=momentum_alpha,
+            self._neurons = [[Neuron(neurons_by_layer[i], learning_rate=learning_rate, momentum_alpha=momentum_alpha,
                                      activation_function=activations_by_layer[i])
                               for _ in range(neurons_by_layer[i + 1])] for i in range(len(neurons_by_layer) - 1)]
         else:
@@ -209,21 +227,21 @@ class Classifier(Network):
 
 class Autoencoder(Network):
     def determine_error(self, label, result: list, confusion_matrix: defaultdict = None):
+        confusion_matrix[label][0] += .5 * sum((result[-1][i] - result[0][i]) ** 2 for i in range(len(result[0])))
         return .5 * sum((result[-1][i] - result[0][i]) ** 2 for i in range(len(result[0])))
 
     def determine_immediate_error(self, label, idx, output, data):
         return data[idx] - output
 
 
-def problem1():
+def problem1(hidden_neurons: int):
     network = Classifier(#weight_file='weights/weights1pt6pt.csv',
-                         neurons_by_layer = [784, 175, 10],
+                         neurons_by_layer=[784, hidden_neurons, 10],
                          activations_by_layer=[ActivationFunction.RELU, ActivationFunction.LEAKY_RELU])
-    # network = Network(weight_file='weights/finalweights.csv')
     initial_error_fraction, initial_classification = network.test('organizedData/1test')
     print(initial_error_fraction)
+
     error_fraction = network.train("organizedData/1training", epoch_size=1000, desired_error_rate=.005)
-    network.write_weights('weights/finalweights.csv')
     # plot error fraction against epoch
     plt.plot([i * 10 for i in range(len(error_fraction))], error_fraction)
     plt.xlabel("Epoch")
@@ -235,16 +253,19 @@ def problem1():
     final_error_fraction, final_classification = network.test('organizedData/1test')
     print(final_error_fraction)
     print(final_classification)
+    network.write_weights(f'weights/finalweights{final_error_fraction}_{hidden_neurons}.csv')
+
+    return network
 
 
-def problem2():
-    network = Autoencoder(neurons_by_layer=[784, 175, 784],
-                          activations_by_layer=[ActivationFunction.RELU, ActivationFunction.LEAKY_RELU])
-    # network = Network(weight_file='weights/finalweights.csv')
-    initial_error_fraction, initial_classification = network.test('organizedData/1test')
-    print('initial error fraction: ', initial_error_fraction)
+def problem2(hidden_neurons: int):
+    network = Autoencoder(neurons_by_layer=[784, hidden_neurons, 784],
+                          activations_by_layer=[ActivationFunction.RELU, ActivationFunction.LEAKY_RELU],
+                          momentum_alpha=.001)
+    initial_loss, initial_total_error = network.test('organizedData/1test')
+    print('initial loss: ', initial_loss)
 
-    error_fraction = network.train("organizedData/1training", epoch_size=1000, desired_error_rate=.005)
+    error_fraction = network.train("organizedData/1training", epoch_size=1000, desired_error_rate=56)
     network.write_weights('weights/autoencoderweights.csv')
     # plot error fraction against epoch
     plt.plot([i * 10 for i in range(len(error_fraction))], error_fraction)
@@ -254,30 +275,65 @@ def problem2():
     plt.grid(True)
     plt.show()
 
-    final_error_fraction, final_classification = network.test('organizedData/1test')
-    print(final_error_fraction)
+    final_loss, final_total_error = network.test('organizedData/1test')
+    print(final_loss)
 
-    # # plot heatmaps of weights initial and final
-    # initial_heatmap = np.reshape(initial_weights, (28, 28))
-    # final_heatmap = np.reshape(perceptron_1.get_weights(), (28, 28))
-    # fig, axes = plt.subplots(ncols=2, figsize=(8, 4))
-    # ax1, ax2 = axes
-    # im1 = ax1.matshow(initial_heatmap)
-    # im2 = ax2.matshow(final_heatmap)
-    # fig.colorbar(im1, ax=ax1), fig.colorbar(im2, ax=ax2)
-    # ax1.set_ylabel('Pixels'), ax1.set_xlabel('Pixels')
-    # ax2.set_ylabel('Pixels'), ax2.set_xlabel('Pixels')
-    # ax1.set_title('Initial Weights')
-    # ax2.set_title('Final Weights')
-    # plt.show()
-    #
-    # # present challenge dataset, output results
-    # print(f"Challenge results: {perceptron_1.challenge('organizedData/1challenge')}")
-    #
+    # plot initial and final loss
+    metrics = ['Before and After']
+    plt.bar(np.arange(len(metrics)) - 0.2, [initial_loss], 0.4, label='Initial')
+    plt.bar(np.arange(len(metrics)) + 0.2, [final_loss], 0.4, label='Final')
+    plt.xticks(np.arange(len(metrics)), metrics)
+    plt.ylabel("J2 Loss Value"), plt.legend()
+    plt.title("Loss of Autoencoder before and after Training")
+    plt.show()
+
+    # plot initial and final metrics
+    split_metrics = [i for i in range(10)]
+    plt.bar(np.arange(len(split_metrics)) - 0.2, [initial_total_error[i][0] / 1000 for i in initial_total_error], 0.4,
+            label='Initial')
+    plt.bar(np.arange(len(split_metrics)) + 0.2, [final_total_error[i][0] / 1000 for i in final_total_error], 0.4,
+            label='Final')
+    plt.xticks(np.arange(len(metrics)), metrics)
+    plt.xlabel("Classes"), plt.ylabel("Average Loss"), plt.legend()
+    plt.title("Average loss for each class")
+    plt.show()
+
+    return network
 
 
 if __name__ == '__main__':
     # create_data('datafiles/MNISTnumImages5000_balanced.txt', 'datafiles/MNISTnumLabels5000_balanced.txt', 5000,
     #             {i for i in range(10)}, 100, 'organizedData/1')
-    # problem1()
-    problem2()
+
+    classifier = problem1(150)
+    autoencoder = problem2(150)
+
+    # select 20 hidden neurons to plot
+    to_plot = set()
+    while len(to_plot) < 20:
+        to_plot.add(random.randint(0, len(classifier[0])))
+    classifier_weights = [[], [], [], []]
+    autoencoder_weights = [[], [], [], []]
+    for index in to_plot:
+        for i in range(len(classifier_weights)):
+            if len(classifier_weights[i]) < 5:
+                classifier_weights[i].append(classifier.read_weights('weights/weights1pt6pt.csv')[0][index][1:])
+                autoencoder_weights[i].append(autoencoder.read_weights('weights/autoencoderweights.csv')[0][index][1:])
+
+    plot_heatmaps(classifier_weights, [[f'Hidden Neuron {list(to_plot)[i*4+j]} Weights'
+                                        for j in range(5)] for i in range(4)], 'Classifier Hidden Neuron Weights')
+    plot_heatmaps(autoencoder_weights, [[f'Hidden Neuron {list(to_plot)[i*4+j]} Weights'
+                                        for j in range(5)] for i in range(4)], 'Autoencoder Hidden Neuron Weights')
+
+    to_plot = set()
+    while len(to_plot) < 8:
+        to_plot.add(random.randint(0, 1000))
+    autoencoder_comparisons = [[], []]
+    with open('organizedData/1test') as tests:
+        for idx, test in enumerate(tests):
+            if idx in to_plot:
+                label, image = int(test.split(' ')[0]), [float(i) for i in test.strip().split(' ')[1:]]
+                autoencoder_comparisons[0].append(image)
+                autoencoder_comparisons[1].append(autoencoder.propagate_inputs(image)[-1])
+    plot_heatmaps(autoencoder_comparisons, [[f'Input Image {list(to_plot)[i]}' for i in range(8)],
+                                            [f'Output Image {list(to_plot)[i]}' for i in range(8)]], 'Autoencoder Before and After Sets')
