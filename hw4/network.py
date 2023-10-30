@@ -50,32 +50,42 @@ def create_data(image_file, label_file, data_limit, values: set, test_quantity: 
     test_file.close()
 
 
-def plot_heatmaps(data: [[]], captions: [], image_caption: str):
+def plot_heatmaps(data: [[]], captions: [], image_caption: str, xlabel: str='', ylabel: str=''):
     # plot heatmaps of weights initial and final
 
     fig, axes = plt.subplots(nrows=len(data), ncols=len(data[0]))
-    fig.title(image_caption)
+    fig.suptitle(image_caption)
     fig.tight_layout()
 
-    plt.subplots_adjust(left=0.6,
-                        bottom=0.1,
-                        right=0.6,
-                        top=0.5,
-                        wspace=0.4,
-                        hspace=0.4)
+    plt.subplots_adjust(left=0.15,
+                        bottom=0.05,
+                        right=0.85,
+                        top=0.90,
+                        wspace=0.35,
+                        hspace=.4)
+    # find max value in the first data value
+    maximum = max((data[0][0]+data[1][1])) + .05 * max((data[0][0]+data[1][1]))
+    minimum = min((data[0][0]+data[1][1])) - .05 * max((data[0][0]+data[1][1]))
+
     for i in range(len(data)):
         for j in range(len(data[0])):
             heatmap = np.reshape(data[i][j], (28, 28))
-            image = axes[i][j].matshow(heatmap)
-            fig.colorbar(image, ax=axes[i][j])
-            axes[i][j].set_title(captions[i][j]), axes[i][j].set_xlabel('Weights'), axes[i][j].set_ylabel('Weights')
+            heatmap = np.transpose(heatmap)
+
+            image = axes[i][j].matshow(heatmap, cmap='gray', vmin=minimum, vmax=maximum)
+            cbar = fig.colorbar(image, ax=axes[i][j])
+            cbar.ax.tick_params(labelsize=6)
+            axes[i][j].tick_params(axis='x', labelsize=6)  # Set font size for labels
+            axes[i][j].tick_params(axis='y', labelsize=6)  # Set font size for labels
+            axes[i][j].set_title(captions[i][j], fontsize=9)
+            axes[i][j].set_xlabel(xlabel, fontsize=6), axes[i][j].set_ylabel(ylabel, fontsize=6)
 
     plt.show()
 
 
 class Network:
     def __init__(self, neurons_by_layer: list = None, activations_by_layer: list = None,
-                 weight_file: str = None, momentum_alpha: float = 0.0, learning_rate = .0005):
+                 weight_file: str = None, momentum_alpha: float = 0.0, learning_rate=.0005):
         """
         make a list of lists of neurons
         """
@@ -144,7 +154,12 @@ class Network:
         return 0.0
 
     def continue_training(self, current_error, desired_error, epoch, epoch_limit):
-        if epoch_limit > 0:
+        if epoch_limit > 0 and desired_error > 0:
+            if epoch >= epoch_limit:
+                return False
+            else:
+                return current_error > desired_error
+        elif epoch_limit > 0:
             return epoch < epoch_limit
         elif desired_error > 0:
             return current_error > desired_error
@@ -164,7 +179,7 @@ class Network:
 
     def train(self, training_file: str, epoch_size: int = 1000, desired_error_rate: float = .01, epoch_limit=-1):
         error_fractions = []
-        error_fraction = 1
+        error_fraction = desired_error_rate * 1000
         epoch = 0
         with open(training_file) as file:
             trainings = file.readlines()
@@ -227,7 +242,8 @@ class Classifier(Network):
 
 class Autoencoder(Network):
     def determine_error(self, label, result: list, confusion_matrix: defaultdict = None):
-        confusion_matrix[label][0] += .5 * sum((result[-1][i] - result[0][i]) ** 2 for i in range(len(result[0])))
+        if confusion_matrix is not None:
+            confusion_matrix[label][0] += .5 * sum((result[-1][i] - result[0][i]) ** 2 for i in range(len(result[0])))
         return .5 * sum((result[-1][i] - result[0][i]) ** 2 for i in range(len(result[0])))
 
     def determine_immediate_error(self, label, idx, output, data):
@@ -235,13 +251,13 @@ class Autoencoder(Network):
 
 
 def problem1(hidden_neurons: int):
-    network = Classifier(#weight_file='weights/weights1pt6pt.csv',
-                         neurons_by_layer=[784, hidden_neurons, 10],
+    network = Classifier(weight_file='weights/classifierweightsfinal.csv',
+                         neurons_by_layer=[784, hidden_neurons, 10], momentum_alpha=.025, learning_rate=.001,
                          activations_by_layer=[ActivationFunction.RELU, ActivationFunction.LEAKY_RELU])
     initial_error_fraction, initial_classification = network.test('organizedData/1test')
     print(initial_error_fraction)
 
-    error_fraction = network.train("organizedData/1training", epoch_size=1000, desired_error_rate=.005)
+    error_fraction = network.train("organizedData/1training", epoch_size=1000, desired_error_rate=.005, epoch_limit=250)
     # plot error fraction against epoch
     plt.plot([i * 10 for i in range(len(error_fraction))], error_fraction)
     plt.xlabel("Epoch")
@@ -251,22 +267,24 @@ def problem1(hidden_neurons: int):
     plt.show()
 
     final_error_fraction, final_classification = network.test('organizedData/1test')
-    print(final_error_fraction)
-    print(final_classification)
+    print(final_error_fraction, [':'.join([str(i), str([final_classification[i][j] for j in range(10)])]) for i in range(10)])
+    final_test_errorfraction, final_training_classification = network.test('organizedData/1training')
+    print([':'.join([str(i), str([final_training_classification[i][j] for j in range(10)])]) for i in range(10)])
+
     network.write_weights(f'weights/finalweights{final_error_fraction}_{hidden_neurons}.csv')
 
     return network
 
 
 def problem2(hidden_neurons: int):
-    network = Autoencoder(neurons_by_layer=[784, hidden_neurons, 784],
+    network = Autoencoder(weight_file='weights/autoencoderweightsfinal.csv',
+                          neurons_by_layer=[784, hidden_neurons, 784],
                           activations_by_layer=[ActivationFunction.RELU, ActivationFunction.LEAKY_RELU],
-                          momentum_alpha=.001)
+                          momentum_alpha=.15, learning_rate=.001)  #succeeded to 2% with .0002 in 400 some epochs
     initial_loss, initial_total_error = network.test('organizedData/1test')
     print('initial loss: ', initial_loss)
 
-    error_fraction = network.train("organizedData/1training", epoch_size=1000, desired_error_rate=56)
-    network.write_weights('weights/autoencoderweights.csv')
+    error_fraction = network.train("organizedData/1training", epoch_size=1200, desired_error_rate=1.5, epoch_limit=250)
     # plot error fraction against epoch
     plt.plot([i * 10 for i in range(len(error_fraction))], error_fraction)
     plt.xlabel("Epoch")
@@ -276,15 +294,16 @@ def problem2(hidden_neurons: int):
     plt.show()
 
     final_loss, final_total_error = network.test('organizedData/1test')
+    network.write_weights(f'weights/autoencoderweights_{final_loss}_{datetime.datetime.now().strftime("%m%d_%H%M")}.csv')
     print(final_loss)
 
     # plot initial and final loss
-    metrics = ['Before and After']
+    metrics = ['Before and after loss']
     plt.bar(np.arange(len(metrics)) - 0.2, [initial_loss], 0.4, label='Initial')
     plt.bar(np.arange(len(metrics)) + 0.2, [final_loss], 0.4, label='Final')
     plt.xticks(np.arange(len(metrics)), metrics)
     plt.ylabel("J2 Loss Value"), plt.legend()
-    plt.title("Loss of Autoencoder before and after Training")
+    plt.title("Average loss of autoencoder before and after Training")
     plt.show()
 
     # plot initial and final metrics
@@ -293,7 +312,7 @@ def problem2(hidden_neurons: int):
             label='Initial')
     plt.bar(np.arange(len(split_metrics)) + 0.2, [final_total_error[i][0] / 1000 for i in final_total_error], 0.4,
             label='Final')
-    plt.xticks(np.arange(len(metrics)), metrics)
+    plt.xticks(np.arange(len(split_metrics)), split_metrics)
     plt.xlabel("Classes"), plt.ylabel("Average Loss"), plt.legend()
     plt.title("Average loss for each class")
     plt.show()
@@ -305,24 +324,25 @@ if __name__ == '__main__':
     # create_data('datafiles/MNISTnumImages5000_balanced.txt', 'datafiles/MNISTnumLabels5000_balanced.txt', 5000,
     #             {i for i in range(10)}, 100, 'organizedData/1')
 
-    classifier = problem1(150)
-    autoencoder = problem2(150)
+    classifier = problem1(175)
+    autoencoder = problem2(175)
 
     # select 20 hidden neurons to plot
     to_plot = set()
     while len(to_plot) < 20:
-        to_plot.add(random.randint(0, len(classifier[0])))
+        to_plot.add(random.randint(0, len(classifier.read_weights('weights/classifierweightsfinal.csv')[0])-1))
     classifier_weights = [[], [], [], []]
     autoencoder_weights = [[], [], [], []]
     for index in to_plot:
         for i in range(len(classifier_weights)):
             if len(classifier_weights[i]) < 5:
-                classifier_weights[i].append(classifier.read_weights('weights/weights1pt6pt.csv')[0][index][1:])
-                autoencoder_weights[i].append(autoencoder.read_weights('weights/autoencoderweights.csv')[0][index][1:])
+                classifier_weights[i].append(classifier.read_weights('weights/classifierweightsfinal.csv')[0][index][1:])
+                autoencoder_weights[i].append(autoencoder.read_weights('weights/autoencoderweightsfinal.csv')[0][index][1:])
+                break
 
-    plot_heatmaps(classifier_weights, [[f'Hidden Neuron {list(to_plot)[i*4+j]} Weights'
+    plot_heatmaps(classifier_weights, [[f'Hidden Neuron {list(to_plot)[i*4+j]}'
                                         for j in range(5)] for i in range(4)], 'Classifier Hidden Neuron Weights')
-    plot_heatmaps(autoencoder_weights, [[f'Hidden Neuron {list(to_plot)[i*4+j]} Weights'
+    plot_heatmaps(autoencoder_weights, [[f'Hidden Neuron {list(to_plot)[i*4+j]}'
                                         for j in range(5)] for i in range(4)], 'Autoencoder Hidden Neuron Weights')
 
     to_plot = set()
@@ -335,5 +355,5 @@ if __name__ == '__main__':
                 label, image = int(test.split(' ')[0]), [float(i) for i in test.strip().split(' ')[1:]]
                 autoencoder_comparisons[0].append(image)
                 autoencoder_comparisons[1].append(autoencoder.propagate_inputs(image)[-1])
-    plot_heatmaps(autoencoder_comparisons, [[f'Input Image {list(to_plot)[i]}' for i in range(8)],
-                                            [f'Output Image {list(to_plot)[i]}' for i in range(8)]], 'Autoencoder Before and After Sets')
+    plot_heatmaps(autoencoder_comparisons, [[f'Input {list(to_plot)[i]}' for i in range(8)],
+                                            [f'Output {list(to_plot)[i]}' for i in range(8)]], 'Autoencoder Before and After Sets')
