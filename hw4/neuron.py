@@ -1,6 +1,6 @@
 """
 This is a common neuron used for various networks
-
+author: Rachael Judy
 
 """
 
@@ -23,7 +23,6 @@ class Neuron:
                  bias: float = None, learning_rate: float = .005,
                  momentum_alpha=0,
                  activation_function=ActivationFunction.SIGMOID):
-        # make the initial weights a glorot distribution
         self._weights = initial_weights if initial_weights \
             else [(random.random() - .5) / 32 for _ in range(input_size)]
         self._previous_weight_change = [0 for _ in range(input_size + 1)]

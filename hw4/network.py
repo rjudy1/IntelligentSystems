@@ -249,6 +249,9 @@ class Autoencoder(Network):
     def determine_immediate_error(self, label, idx, output, data):
         return data[idx] - output
 
+# _____________________________|__
+# HW Specific code below here  |
+# _____________________________v____
 
 def problem1(hidden_neurons: int):
     network = Classifier(weight_file='weights/classifierweightsfinal.csv',
