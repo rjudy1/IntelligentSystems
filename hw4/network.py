@@ -297,8 +297,8 @@ def problem2(hidden_neurons: int):
     plt.show()
 
     final_loss, final_total_error = network.test('organizedData/1test')
-    network.write_weights(f'weights/autoencoderweights_{final_loss}_{datetime.datetime.now().strftime("%m%d_%H%M")}.csv')
-    print(final_loss)
+    # network.write_weights(f'weights/autoencoderweights_{final_loss}_{datetime.datetime.now().strftime("%m%d_%H%M")}.csv')
+    # # print(final_loss)
 
     # plot initial and final loss
     metrics = ['Before and after loss']
@@ -311,9 +311,9 @@ def problem2(hidden_neurons: int):
 
     # plot initial and final metrics
     split_metrics = [i for i in range(10)]
-    plt.bar(np.arange(len(split_metrics)) - 0.2, [initial_total_error[i][0] / 1000 for i in initial_total_error], 0.4,
+    plt.bar(np.arange(len(split_metrics)) - 0.2, [initial_total_error[i][0] / 100 for i in initial_total_error], 0.4,
             label='Initial')
-    plt.bar(np.arange(len(split_metrics)) + 0.2, [final_total_error[i][0] / 1000 for i in final_total_error], 0.4,
+    plt.bar(np.arange(len(split_metrics)) + 0.2, [final_total_error[i][0] / 100 for i in final_total_error], 0.4,
             label='Final')
     plt.xticks(np.arange(len(split_metrics)), split_metrics)
     plt.xlabel("Classes"), plt.ylabel("Average Loss"), plt.legend()
