@@ -10,7 +10,6 @@ for various networks. The neuron.py file must be in the same folder as the netwo
 - random
 
 ## Usage
-In order to run the code provided, simply run `python hw3.py`. This will simulate the perceptron between 0s and 1s
-and the 0s and 9s, presenting the relevant plots. 
-
-The `Perceptron` class is meant to be modifiable for other neurons to change the training model.
+In order to run the code provided, simply run `python network.py`.
+This will run the code for the classifier and autoencoder training
+and testing, presenting relevant plots.

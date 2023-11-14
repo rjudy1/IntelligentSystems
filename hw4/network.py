@@ -260,9 +260,9 @@ def problem1(hidden_neurons: int):
     initial_error_fraction, initial_classification = network.test('organizedData/1test')
     print(initial_error_fraction)
 
-    error_fraction = network.train("organizedData/1training", epoch_size=1000, desired_error_rate=.005, epoch_limit=250)
+    # error_fraction = network.train("organizedData/1training", epoch_size=1000, desired_error_rate=.005, epoch_limit=250)
     # plot error fraction against epoch
-    plt.plot([i * 10 for i in range(len(error_fraction))], error_fraction)
+    # plt.plot([i * 10 for i in range(len(error_fraction))], error_fraction)
     plt.xlabel("Epoch")
     plt.ylabel("Error Fraction")
     plt.title("Error Fraction During Training of Network")

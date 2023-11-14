@@ -6,6 +6,7 @@ author: Rachael Judy
 
 from enum import Enum
 import math
+import numpy as np
 import random
 
 
@@ -23,9 +24,9 @@ class Neuron:
                  bias: float = None, learning_rate: float = .005,
                  momentum_alpha=0,
                  activation_function=ActivationFunction.SIGMOID):
-        self._weights = initial_weights if initial_weights \
-            else [(random.random() - .5) / 32 for _ in range(input_size)]
-        self._previous_weight_change = [0 for _ in range(input_size + 1)]
+        self._weights = np.array(initial_weights) if initial_weights \
+            else np.array([(random.random() - .5) / 32 for _ in range(input_size)])
+        self._previous_weight_change = np.array([0 for _ in range(input_size + 1)])
 
         self._activation_function = activation_function
         self._bias = random.random() - .75 if bias is None else bias
@@ -33,7 +34,7 @@ class Neuron:
         self._momentum_parameter = momentum_alpha
         self._activation_parameter = None
 
-    def get_weights(self) -> list:
+    def get_weights(self) -> np.array:
         return self._weights
 
     def get_bias(self) -> float:
@@ -53,7 +54,8 @@ class Neuron:
         self._learning_rate = rate
 
     def get_logit(self, inputs):
-        return sum(i[0] * i[1] for i in zip(inputs, self._weights)) + self._bias
+        return inputs @ self._weights + self._bias
+        # return sum(i[0] * i[1] for i in zip(inputs, self._weights)) + self._bias
 
     def activate(self, inputs) -> float:
         net_input = self.get_logit(inputs)
