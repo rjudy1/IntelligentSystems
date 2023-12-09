@@ -172,14 +172,13 @@ class Network:
                     for j in range(len(self._neurons[-1])):
                         self._neurons[-1][j].update_weights(backprop_errors[-1][j], result[-2])
 
-
             error_fraction = errors / total
+            epoch += 1
             if epoch % 10 == 0:
                 print(epoch, error_fraction, time.time() - start, datetime.datetime.now().strftime("%H:%M:%S"))
                 start = time.time()
                 error_fractions.append(error_fraction)
             if epoch % 50 == 0:
-                self.write_weights(f'weights/weights{time.time()}')
-            epoch += 1
+                self.write_weights(f'weights/weights{int(time.time())}_{epoch}')
 
         return error_fractions
